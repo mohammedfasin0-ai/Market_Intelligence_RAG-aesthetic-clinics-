@@ -2,7 +2,7 @@ name: Run Headful Scrapers
 
 on:
   schedule:
-    - cron: '30 11 * * *''  # Runs every day at 00:00 UTC
+    - cron: '30 11 * * *'  # Runs every day at 00:00 UTC
   workflow_dispatch:      # Allows manual trigger from the Actions tab
 
 jobs:
@@ -33,14 +33,17 @@ jobs:
       - name: Run Reddit Scraper
         working-directory: ./collectors/reddit
         run: xvfb-run --auto-servernum python main.py
+        continue-on-error: true
 
       - name: Run News Feed Scraper
         working-directory: "./collectors/News Feed"
         run: xvfb-run --auto-servernum python main.py
+        continue-on-error: true
 
       - name: Run YouTube Scraper
         working-directory: ./collectors/youtube
         run: xvfb-run --auto-servernum python amspa_podcasts.py
+        continue-on-error: true
 
       - name: Run Normalizer
         working-directory: ./collectors
