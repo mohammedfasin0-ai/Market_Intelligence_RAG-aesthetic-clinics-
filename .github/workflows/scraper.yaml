@@ -2,7 +2,7 @@ name: Run Headful Scrapers
 
 on:
   schedule:
-    - cron: '0 0 * * *'  # Runs every day at 00:00 UTC
+    - cron: '30 11 * * *''  # Runs every day at 00:00 UTC
   workflow_dispatch:      # Allows manual trigger from the Actions tab
 
 jobs:
