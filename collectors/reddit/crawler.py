@@ -21,7 +21,7 @@ def crawl_posts():
 
     url = build_url(keyword)
 
-    cutoff_time = datetime.now(UTC) - timedelta(days=1)
+    cutoff_time = datetime.now(UTC) - timedelta(days=5)
 
     while True:
 
