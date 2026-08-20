@@ -10,7 +10,7 @@ load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
-API_KEY = os.getenv("YT_TRANSCRIPT_API")
+YT_TRANSCRIPT_API = os.getenv("YT_TRANSCRIPT_API")
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 channel_id = "UC67oWsoscR1MDgFozbYEYHg"
@@ -70,7 +70,7 @@ def get_transcript(all_list):
 
         url = 'https://transcriptapi.com/api/v2/youtube/transcript'
         params = {'video_url': video_url, 'format': 'json'}
-        r = requests.get(url, params=params, headers={'Authorization': 'Bearer ' + API_KEY}, timeout=30)
+        r = requests.get(url, params=params, headers={'Authorization': 'Bearer ' + YT_TRANSCRIPT_API}, timeout=30)
         r.raise_for_status()
         transcript_data= r.json()['transcript']
         clean_text = " ".join([item['text'] for item in transcript_data])
