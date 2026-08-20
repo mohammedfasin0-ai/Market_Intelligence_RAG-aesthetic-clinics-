@@ -41,3 +41,11 @@ jobs:
       - name: Run YouTube Scraper
         working-directory: ./collectors/youtube
         run: xvfb-run --auto-servernum python amspa_podcasts.py
+
+      - name: Run Normalizer
+        working-directory: ./collectors
+        run: xvfb-run --auto-servernum python normalizer.py
+
+      - name: Embedding
+        working-directory: "./collectors/News Feed"
+        run: xvfb-run --auto-servernum python embedding.py
