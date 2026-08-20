@@ -8,6 +8,12 @@ on:
 jobs:
   scrape:
     runs-on: ubuntu-latest
+    env:  # <--- Moving it here makes it global for all steps!
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+      YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+      YT_TRANSCRIPT_API: ${{ secrets.YT_TRANSCRIPT_API }}
+      
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
