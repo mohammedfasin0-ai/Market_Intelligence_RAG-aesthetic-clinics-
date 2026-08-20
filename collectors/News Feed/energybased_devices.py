@@ -8,7 +8,7 @@ url = "https://modernaesthetics.com/medical-news/energy-based-devices/"
 BASE_URL = "https://www.modernaesthetics.com"
 
 DATE_FORMAT = "%m/%d/%Y"
-CUTOFF_DAYS = 3
+CUTOFF_DAYS = 4
 
 
 def get_energydevice_news():

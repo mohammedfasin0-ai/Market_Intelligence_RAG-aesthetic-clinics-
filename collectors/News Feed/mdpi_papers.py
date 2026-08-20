@@ -2,7 +2,7 @@ from playwright.sync_api import sync_playwright
 from bs4 import BeautifulSoup
 from datetime import datetime
 
-def get_recent_articles(search_query: str, max_days: int = 3) -> list:
+def get_recent_articles(search_query: str, max_days: int = 5) -> list:
     """
     Scrapes MDPI search results for a query and returns articles published 
     within the specified maximum number of days.

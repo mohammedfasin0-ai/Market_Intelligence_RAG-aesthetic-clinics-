@@ -49,12 +49,7 @@ def main():
 
     print("now energy based devices news")
     energy_device_articles = get_energydevice_news()
-    result = upsert_energy_articles(energy_device_articles)
-    if result:
-        print("upserted energy devices news into db")
-    else: 
-        print("No items Found!")
-
+    upsert_energy_articles(energy_device_articles)
 
 if __name__ == "__main__":
     main()

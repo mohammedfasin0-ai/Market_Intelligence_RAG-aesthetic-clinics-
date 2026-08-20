@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 URL = "https://www.americanmedspa.org/articles-and-news/"
 AJAX_URL = "https://www.americanmedspa.org/wp-admin/admin-ajax.php"
 
-cutoff_date = datetime.now() - timedelta(days=3)
+cutoff_date = datetime.now() - timedelta(days=5)
 
 def parse_articles(html):
 

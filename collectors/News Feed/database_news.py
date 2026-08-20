@@ -65,10 +65,13 @@ def upsert_energy_articles(energy_device_articles):
 
     if energy_device_articles:
 
-        response= (supabase.table("energybased_devices")
+        (supabase.table("energybased_devices")
                             .upsert(energy_device_articles, on_conflict= "id")
                             .execute())
-    else: 
-          print("no energy based news today!")
+        print("upserted energy devices news into db")
+        
+        
+    else:
+          
+         print("no energy based news today!")
 
-    return response.data
