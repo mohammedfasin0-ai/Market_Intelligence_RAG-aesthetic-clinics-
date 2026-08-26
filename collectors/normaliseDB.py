@@ -10,25 +10,70 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 BATCH_SIZE = 500
+PARENT_COMMENT_SNIPPET_LEN = 100  # keep this short — it's context, not content
 
 
-def _news_text(row):
+def _news_text(row, context=None):
     return f"{row.get('title') or ''}\n\n{row.get('body') or ''}".strip()
 
 
-def _paper_text(row):
+def _paper_text(row, context=None):
     return f"{row.get('title') or ''}\n\n{row.get('body') or ''}".strip()
 
 
-def _reddit_post_text(row):
+def _reddit_post_text(row, context=None):
     return f"{row.get('title') or ''}\n\n{row.get('body') or ''}".strip()
 
 
-def _reddit_comment_text(row):
-    return (row.get("body") or "").strip()
+def _reddit_comment_context(rows, sb):
+    """
+    One bulk fetch per batch (not per row) to get:
+      - the parent post's title, for every comment in this batch
+      - the parent comment's body, for comments that are replies to another comment
+    """
+    post_ids = list({r["post_id"] for r in rows if r.get("post_id")})
+    parent_comment_ids = list({r["parent_comment_id"] for r in rows if r.get("parent_comment_id")})
+
+    post_title_by_id = {}
+    if post_ids:
+        res = sb.table("reddit_posts").select("post_id,title").in_("post_id", post_ids).execute()
+        post_title_by_id = {r["post_id"]: r["title"] for r in res.data}
+
+    parent_body_by_id = {}
+    if parent_comment_ids:
+        res = (
+            sb.table("reddit_post_comments")
+            .select("comment_id,body")
+            .in_("comment_id", parent_comment_ids)
+            .execute()
+        )
+        parent_body_by_id = {r["comment_id"]: r["body"] for r in res.data}
+
+    return {"post_title_by_id": post_title_by_id, "parent_body_by_id": parent_body_by_id}
 
 
-def _device_text(row):
+def _reddit_comment_text(row, context=None):
+    context = context or {}
+    body = (row.get("body") or "").strip()
+
+    post_title = context.get("post_title_by_id", {}).get(row.get("post_id"), "")
+
+    parent_snippet = ""
+    parent_comment_id = row.get("parent_comment_id")
+    if parent_comment_id:
+        parent_body = context.get("parent_body_by_id", {}).get(parent_comment_id)
+        if parent_body:
+            trimmed = parent_body.strip()[:PARENT_COMMENT_SNIPPET_LEN]
+            parent_snippet = f" > replying to: {trimmed}"
+
+    if not post_title:
+        # fallback — shouldn't normally happen, but don't lose the comment if the join misses
+        return body
+
+    return f"[Context: {post_title}{parent_snippet}] {body}".strip()
+
+
+def _device_text(row, context=None):
     # key_takeaways is stored as a stringified JSON array — parse before joining
     takeaways_raw = row.get("key_takeaways")
     takeaways = ""
@@ -41,7 +86,7 @@ def _device_text(row):
     return f"{row.get('title') or ''}\n\n{takeaways}\n\n{row.get('body') or ''}".strip()
 
 
-def _podcast_text(row):
+def _podcast_text(row, context=None):
     return f"{row.get('title') or ''}\n\n{row.get('transcript') or ''}".strip()
 
 
@@ -53,6 +98,7 @@ NORMALIZE_CONFIGS = [
         "source_type": "reddit_post",
         "posted_at_col": "created_at",
         "text_fn": _reddit_post_text,
+        "context_fn": None,
         "extra_filter": None,
     },
     {
@@ -61,6 +107,7 @@ NORMALIZE_CONFIGS = [
         "source_type": "reddit_comment",
         "posted_at_col": "created_at",
         "text_fn": _reddit_comment_text,
+        "context_fn": _reddit_comment_context,  # bulk-fetches post titles + parent comment snippets
         "extra_filter": None,
     },
     {
@@ -69,6 +116,7 @@ NORMALIZE_CONFIGS = [
         "source_type": "news",
         "posted_at_col": "created_at",
         "text_fn": _news_text,
+        "context_fn": None,
         "extra_filter": None,
     },
     {
@@ -77,6 +125,7 @@ NORMALIZE_CONFIGS = [
         "source_type": "paper",
         "posted_at_col": "published_at",
         "text_fn": _paper_text,
+        "context_fn": None,
         "extra_filter": None,
     },
     {
@@ -85,6 +134,7 @@ NORMALIZE_CONFIGS = [
         "source_type": "device",
         "posted_at_col": "published_at",
         "text_fn": _device_text,
+        "context_fn": None,
         "extra_filter": None,
     },
     {
@@ -93,6 +143,7 @@ NORMALIZE_CONFIGS = [
         "source_type": "podcast",
         "posted_at_col": "published_date",
         "text_fn": _podcast_text,
+        "context_fn": None,
         # skip rows with no transcript (e.g. junk/test rows) rather than
         # normalizing empty content
         "extra_filter": lambda q: q.not_.is_("transcript", "null"),
@@ -107,6 +158,7 @@ def normalize_table(config):
     source_type = config["source_type"]
     posted_at_col = config["posted_at_col"]
     text_fn = config["text_fn"]
+    context_fn = config.get("context_fn")
     extra_filter = config["extra_filter"]
 
     total_processed = 0
@@ -121,10 +173,13 @@ def normalize_table(config):
         if not rows:
             break
 
+        # one bulk lookup for the whole batch, not one query per row
+        context = context_fn(rows, supabase) if context_fn else None
+
         payload = []
         row_ids = []
         for row in rows:
-            text = text_fn(row)
+            text = text_fn(row, context)
             if not text:
                 # nothing usable to embed — mark normalised so it doesn't loop forever,
                 # but don't create an empty content_items row
