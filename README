@@ -1,0 +1,91 @@
+# Aesthetic Clinic Market Intelligence
+
+**A production-grade data pipeline that turns scattered industry noise into a queryable, continuously-updating source of truth — built and actively maintained by a solo developer.**
+
+> **Status: actively under construction.** This is not a finished product and not a weekend project. The ingestion pipeline below is live, running on a schedule, and has already been audited and fixed in production. The dashboard and chat interface are in active development. See [Current status](#current-status) for exactly what's real today.
+
+---
+
+## The problem
+
+"What's happening in the med spa / aesthetic clinic industry right now?" is a genuinely hard question. The answer is scattered across Reddit threads, industry news, academic papers, device manufacturer announcements, and podcast transcripts — none of it structured, none of it in one place, and most of it too noisy to just point an LLM at and hope for the best.
+
+This project is my answer to that problem: a real ingestion pipeline, a real database, and — this is the part most "I built a RAG app" projects skip — a real answer to the question **"what happens when vector search isn't the right tool?"**
+
+## What makes this different from a typical RAG demo
+
+If you've seen one RAG project, you've seen the pattern: load some docs, chunk them, embed them, cosine similarity, done. This project deliberately goes further, in ways that came from hitting real problems, not from a tutorial:
+
+- **Vector search can't answer "what's trending."** It can tell you what's *similar*, not what's *increasing*. So this pipeline maintains a separate, structured aggregation layer — topic-tagged content, rolled up over time — specifically for trend questions, with a query router that decides which path a question actually needs.
+- **A trained classifier instead of an LLM call, on purpose.** Every ingested item needs a topic label, forever, at scale. Rather than pay an LLM API call per item forever, this project bootstraps labels once with an LLM, then trains a lightweight classifier **on embeddings the pipeline already computed for retrieval** — reusing an existing asset instead of building a new one. Near-zero marginal cost per item, no ongoing API spend.
+- **Context-aware ingestion, not naive chunking.** A three-word Reddit reply like *"Hahahahaha"* is meaningless in isolation. The pipeline injects parent-post (and, when relevant, parent-comment) context at ingestion time, so both the embeddings and the topic classifier actually have something to work with — a problem most tutorial-grade scrapers never notice, let alone fix.
+- **Self-auditing, because I found real bugs by auditing it myself.** This pipeline has already caught and fixed a silent 6-day ingestion gap, a mislabeled "1,700 duplicate records" false alarm that turned out to be a bad query (not bad data), and a chunking model that was correctly returning garbage on empty-body content. Every fix here came from actually interrogating the data, not assuming it was fine.
+
+## Current status
+
+**Live and running:**
+- Multi-source scraping across 6 independent sources: Reddit posts, Reddit comments, industry news, academic papers (MDPI), device-manufacturer news, and podcast transcripts
+- Scheduled ingestion via GitHub Actions, running headed browser automation (Playwright + xvfb) on a daily cron
+- A unified content layer (`content_items`) with source-agnostic metadata (title, url, author, timestamp) so retrieval doesn't need source-specific branching
+- Sync-state tracking (`is_normalised`) so the pipeline always knows exactly what's been processed and what hasn't — no silent staleness
+- Chunked embedding pipeline (`sentence-transformers`, local, free) with parent-context injection for short-form content
+- Full referential-integrity auditing: zero orphaned embeddings, zero un-synced backlog, verified against the live database, not assumed
+
+**In active development:**
+- Fixed taxonomy + bootstrapped topic classification (LLM-labeled sample → logistic regression trained on existing embeddings)
+- `topic_rollups` table for time-windowed trend aggregation
+- Two-path chat query router: structured aggregation for trend questions, vector search for semantic ones
+- A dashboard surfacing volume trends, spikes, and recent activity
+
+**Planned:**
+- A self-auditing pipeline-health agent — the same audit process I've been running manually gets automated: check sync freshness, flag anomalies, escalate only when something's actually wrong
+- Engagement-velocity tracking for Reddit content (a second, separately-scheduled re-check job, not bolted onto the discovery scraper)
+
+## Architecture
+
+```
+Raw sources (6, independent)
+        │
+        ▼
+Scheduled scraper (GitHub Actions, daily)
+        │
+        ▼
+Normalize (context injection, dedup via unique constraint)
+        │
+        ▼
+content_items  ──────────────┬──────────────
+   (unified,                 │
+   source-agnostic            ▼
+   metadata)          Embeddings (pgvector)      Topic classifier
+        │                     │                  (reused embeddings)
+        │                     ▼                          │
+        │              Semantic search                   ▼
+        │                     │              content_item_topics → topic_rollups
+        │                     │                          │
+        └─────────────────────┴──────────────────────────┘
+                              ▼
+                  Query router (trend vs semantic)
+                    │                    │
+              Dashboard              Chat interface
+```
+
+## Tech stack
+
+**Data & pipeline:** Python, Playwright, PostgreSQL (Supabase), pgvector
+**ML:** sentence-transformers (`all-MiniLM-L6-v2`), scikit-learn
+**Automation:** GitHub Actions (scheduled, headed-browser via xvfb)
+**Planned:** FastAPI, a lightweight LLM-based query router
+
+## Engineering decisions worth knowing about
+
+A few choices here were deliberate trade-offs, not defaults — happy to talk through the reasoning on any of them:
+
+- **Classical ML (logistic regression) over a neural network for topic classification** — with a few hundred bootstrapped labels and already-informative embedding features, a simple model generalizes better and is trivially fast to retrain than a model that needs more data to justify its complexity.
+- **A many-to-many topic table, not one label per item** — real content often spans categories (a device complaint is both a device post *and* a complaint), and forcing a single label throws that information away.
+- **Structured aggregation as a first-class path, not a vector-search workaround** — trend questions and semantic questions are different questions and deserve different query paths, not one tool stretched to cover both.
+
+## Why this exists
+
+I'm building this as part of becoming an AI systems engineer — not to have a resume bullet that says "built a RAG app," but because the real, unglamorous engineering problems (stale syncs, bad taxonomies, context-free chunking, cost-vs-latency tradeoffs) are the actual job, and I wanted to have really hit them, not just read about them.
+
+This README will keep changing as the project does. If you're reading this and something above is now out of date, that's a feature of an actively maintained project, not a bug in the documentation.
