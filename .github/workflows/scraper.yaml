@@ -47,8 +47,11 @@ jobs:
 
       - name: Run Normalizer
         working-directory: ./collectors
-        run: xvfb-run --auto-servernum python normaliseDB.py
+        run: python normaliseDB.py
 
       - name: Embedding
         working-directory: "./collectors/News Feed"
-        run: xvfb-run --auto-servernum python embeddings.py
+        run: python embeddings.py
+
+      - name: classify items
+        run: python classify.py
