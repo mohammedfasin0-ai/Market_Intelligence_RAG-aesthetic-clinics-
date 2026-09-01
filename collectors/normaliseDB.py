@@ -10,7 +10,7 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 BATCH_SIZE = 500
-PARENT_COMMENT_SNIPPET_LEN = 100  # keep this short — it's context, not content
+PARENT_COMMENT_SNIPPET_LEN = 100  
 
 
 def _news_text(row, context=None):
