@@ -18,8 +18,6 @@ import joblib
 load_dotenv()
 supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
 
-BATCH_SIZE = 500
-
 # Load the model ONCE at startup — not per item. Training is expensive,
 # but loading a saved model and calling .predict() on it is cheap and fast.
 model = joblib.load("topic_classifier.joblib")
@@ -57,7 +55,6 @@ def classify_pending():
             .select("id")
             .eq("embedded", True)
             .eq("topic_classified", False)
-            .limit(BATCH_SIZE)
             .execute()
         )
         items = result.data
