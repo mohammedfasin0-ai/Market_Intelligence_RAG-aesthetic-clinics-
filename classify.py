@@ -17,7 +17,6 @@ import joblib
 
 load_dotenv()
 supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
-
 # Load the model ONCE at startup — not per item. Training is expensive,
 # but loading a saved model and calling .predict() on it is cheap and fast.
 model = joblib.load("topic_classifier.joblib")
