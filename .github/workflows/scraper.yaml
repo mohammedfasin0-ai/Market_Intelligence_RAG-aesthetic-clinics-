@@ -55,3 +55,6 @@ jobs:
 
       - name: classify items
         run: python classify.py
+
+      - name: Topics Rollup
+        run: python topics_rollup.py
