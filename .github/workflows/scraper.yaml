@@ -58,4 +58,4 @@ jobs:
         continue-on-error: true
 
       - name: Topics Rollup
-        run: python topics_rollup.py
+        run: python topic_rollups.py
