@@ -1,8 +1,7 @@
 from comment_database import get_posts, upsert_comments, mark_comments_scraped
 from comment_search import fetch_comment_page
 from comment_parser import parse_comments
-from search import close_browser
-
+import time
 
 def crawl_comments():
 
@@ -32,6 +31,8 @@ def crawl_comments():
             mark_comments_scraped(post["post_id"])
 
             print(f"Marked {post['post_id']}) as comments scraped!")
+
+            time.sleep(3)
 
         except Exception as e:
             print(f"Failed to process post {post['post_id']}")
