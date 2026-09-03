@@ -4,7 +4,7 @@ from database import upsert_posts
 from search import fetch_page
 from parser import parse_page
 
-keywords = ["medspa", "botox", "dermal filler", "kybella", "aesthetician", "injectables", "cool sculpting"]
+keywords = ["medspa", "botox", "dermal filler", "kybella", "aesthetician", "cool sculpting"]
 
 REQUEST_DELAY_SECONDS = 5  # be polite — 7 keywords means 7x the requests of before
 CUTOFF_DAYS = 5
