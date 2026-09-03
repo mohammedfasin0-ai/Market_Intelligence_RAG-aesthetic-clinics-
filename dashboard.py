@@ -126,8 +126,11 @@ else:
         st.info("No examples found for this topic in the selected window.")
     else:
         for _, row in examples_df.iterrows():
-            title = row["title"] or "(no title — likely a comment)"
-            if row["url"]:
+            # pd.notna() catches BOTH None and NaN — a plain truthy check (`row["title"] or ...`)
+            # does NOT, because NaN is truthy in Python. That gap is exactly what was producing
+            # the literal text "nan" in the dashboard instead of a clean fallback.
+            title = row["title"] if pd.notna(row["title"]) else "(no title — likely a comment)"
+            if pd.notna(row["url"]):
                 st.markdown(f"**[{title}]({row['url']})** — {row['source_type']}, {row['posted_at'][:10]}")
             else:
                 st.markdown(f"**{title}** — {row['source_type']}, {row['posted_at'][:10]}")
@@ -142,4 +145,5 @@ activity_df = fetch_recent_activity()
 if not activity_df.empty:
     display_df = activity_df.copy()
     display_df["posted_at"] = display_df["posted_at"].str[:10]
-    st.dataframe(display_df, width=True, hide_index=True)
+    display_df["title"] = display_df["title"].fillna("(no title — likely a comment)")
+    st.dataframe(display_df, width="stretch", hide_index=True)
