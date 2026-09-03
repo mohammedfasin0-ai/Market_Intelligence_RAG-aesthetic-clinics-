@@ -64,36 +64,41 @@ def process_comment(
     body_tag = comment.find("div", class_="comment_body")
     body = body_tag.get_text(" ", strip=True) if body_tag else ""
 
-    comments.append({
-        "comment_id": comment_id,
-        "post_id": post_id,
-        "parent_comment_id": parent_comment_id,
-        "depth": depth,
-        "author": author,
-        "body": body,
-        "score": score,
-        "created_at": created_at
-    })
+    if len(body.split()) < 5:
+        print(f"skipping commment {comment_id} with body length {len(body.split())}")
 
-    # ---------- REPLIES ----------
-    replies = comment.find("div", class_="replies")
+    else:
+        
+        comments.append({
+            "comment_id": comment_id,
+            "post_id": post_id,
+            "parent_comment_id": parent_comment_id,
+            "depth": depth,
+            "author": author,
+            "body": body,
+            "score": score,
+            "created_at": created_at
+        })
 
-    if not replies:
-        return
+        # ---------- REPLIES ----------
+        replies = comment.find("div", class_="replies")
 
-    child_comments = replies.find_all(
-        "div",
-        class_="comment",
-        recursive=False
-    )
+        if not replies:
+            return
 
-    for child in child_comments:
-
-        process_comment(
-            child,
-            post_id=post_id,
-            comments=comments,
-            parent_comment_id=comment_id,
-            depth=depth + 1
+        child_comments = replies.find_all(
+            "div",
+            class_="comment",
+            recursive=False
         )
+
+        for child in child_comments:
+
+            process_comment(
+                child,
+                post_id=post_id,
+                comments=comments,
+                parent_comment_id=comment_id,
+                depth=depth + 1
+            )
 
