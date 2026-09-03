@@ -78,15 +78,35 @@ def fetch_examples_for_topic(topic: str, start_date: str, limit: int = 8) -> pd.
 
 
 @st.cache_data(ttl=300)
-def fetch_recent_activity(limit: int = 15) -> pd.DataFrame:
+def fetch_recent_news(limit: int = 8) -> pd.DataFrame:
     result = (
         supabase.table("content_items")
-        .select("title,url,source_type,posted_at")
+        .select("title,url,posted_at,text_for_embedding")
+        .eq("source_type", "news")
         .order("posted_at", desc=True)
         .limit(limit)
         .execute()
     )
-    return pd.DataFrame(result.data)
+    df = pd.DataFrame(result.data)
+    if not df.empty:
+        df["preview"] = df["text_for_embedding"].str[:180]
+    return df
+
+
+@st.cache_data(ttl=300)
+def fetch_latest_device_article() -> pd.DataFrame:
+    result = (
+        supabase.table("content_items")
+        .select("title,url,posted_at,text_for_embedding")
+        .eq("source_type", "device")
+        .order("posted_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    df = pd.DataFrame(result.data)
+    if not df.empty:
+        df["preview"] = df["text_for_embedding"].str[:300]
+    return df
 
 
 # ---- Sidebar: date range control ----
@@ -139,11 +159,31 @@ else:
 
 st.divider()
 
-# ---- Recent activity feed (always shown, not filtered by topic) ----
-st.subheader("Recent activity across all sources")
-activity_df = fetch_recent_activity()
-if not activity_df.empty:
-    display_df = activity_df.copy()
-    display_df["posted_at"] = display_df["posted_at"].str[:10]
-    display_df["title"] = display_df["title"].fillna("(no title — likely a comment)")
-    st.dataframe(display_df, width="stretch", hide_index=True)
+# ---- Recent industry news (clean, article-style — no Reddit noise here) ----
+st.subheader("Latest industry news")
+news_df = fetch_recent_news()
+if news_df.empty:
+    st.info("No recent news articles found.")
+else:
+    for _, row in news_df.iterrows():
+        title = row["title"] if pd.notna(row["title"]) else "(untitled article)"
+        if pd.notna(row["url"]):
+            st.markdown(f"**[{title}]({row['url']})** — {row['posted_at'][:10]}")
+        else:
+            st.markdown(f"**{title}** — {row['posted_at'][:10]}")
+        st.caption(row["preview"])
+        st.markdown("---")
+
+# ---- Most recent energy-based device article ----
+st.subheader("Latest device update")
+device_df = fetch_latest_device_article()
+if device_df.empty:
+    st.info("No device articles found.")
+else:
+    row = device_df.iloc[0]
+    title = row["title"] if pd.notna(row["title"]) else "(untitled article)"
+    if pd.notna(row["url"]):
+        st.markdown(f"**[{title}]({row['url']})** — {row['posted_at'][:10]}")
+    else:
+        st.markdown(f"**{title}** — {row['posted_at'][:10]}")
+    st.caption(row["preview"])
