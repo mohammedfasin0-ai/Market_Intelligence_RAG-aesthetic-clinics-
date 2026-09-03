@@ -10,19 +10,37 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 BATCH_SIZE = 500
-PARENT_COMMENT_SNIPPET_LEN = 100  
+PARENT_COMMENT_SNIPPET_LEN = 100  # keep this short — it's context, not content
 
 
 def _news_text(row, context=None):
     return f"{row.get('title') or ''}\n\n{row.get('body') or ''}".strip()
 
 
+def _news_metadata(row, context=None):
+    return {"title": row.get("title"), "url": row.get("url"), "author": row.get("author")}
+
+
 def _paper_text(row, context=None):
     return f"{row.get('title') or ''}\n\n{row.get('body') or ''}".strip()
 
 
+def _paper_metadata(row, context=None):
+    # mdpi_papers calls this column "authors" (plural) — the schema names don't line up 1:1
+    return {"title": row.get("title"), "url": row.get("url"), "author": row.get("authors")}
+
+
 def _reddit_post_text(row, context=None):
     return f"{row.get('title') or ''}\n\n{row.get('body') or ''}".strip()
+
+
+def _reddit_post_metadata(row, context=None):
+    return {"title": row.get("title"), "url": row.get("url"), "author": row.get("author")}
+
+
+def _reddit_comment_metadata(row, context=None):
+    # comments don't have their own title/url — only the author is meaningful here
+    return {"title": None, "url": None, "author": row.get("author")}
 
 
 def _reddit_comment_context(rows, sb):
@@ -86,8 +104,17 @@ def _device_text(row, context=None):
     return f"{row.get('title') or ''}\n\n{takeaways}\n\n{row.get('body') or ''}".strip()
 
 
+def _device_metadata(row, context=None):
+    return {"title": row.get("title"), "url": row.get("url"), "author": None}
+
+
 def _podcast_text(row, context=None):
     return f"{row.get('title') or ''}\n\n{row.get('transcript') or ''}".strip()
+
+
+def _podcast_metadata(row, context=None):
+    # the podcast table's URL column is called video_url, not url
+    return {"title": row.get("title"), "url": row.get("video_url"), "author": None}
 
 
 # One entry per source table. Add new sources here — nothing else needs to change.
@@ -98,6 +125,7 @@ NORMALIZE_CONFIGS = [
         "source_type": "reddit_post",
         "posted_at_col": "created_at",
         "text_fn": _reddit_post_text,
+        "metadata_fn": _reddit_post_metadata,
         "context_fn": None,
         "extra_filter": None,
     },
@@ -107,6 +135,7 @@ NORMALIZE_CONFIGS = [
         "source_type": "reddit_comment",
         "posted_at_col": "created_at",
         "text_fn": _reddit_comment_text,
+        "metadata_fn": _reddit_comment_metadata,
         "context_fn": _reddit_comment_context,  # bulk-fetches post titles + parent comment snippets
         "extra_filter": None,
     },
@@ -116,6 +145,7 @@ NORMALIZE_CONFIGS = [
         "source_type": "news",
         "posted_at_col": "created_at",
         "text_fn": _news_text,
+        "metadata_fn": _news_metadata,
         "context_fn": None,
         "extra_filter": None,
     },
@@ -125,6 +155,7 @@ NORMALIZE_CONFIGS = [
         "source_type": "paper",
         "posted_at_col": "published_at",
         "text_fn": _paper_text,
+        "metadata_fn": _paper_metadata,
         "context_fn": None,
         "extra_filter": None,
     },
@@ -134,6 +165,7 @@ NORMALIZE_CONFIGS = [
         "source_type": "device",
         "posted_at_col": "published_at",
         "text_fn": _device_text,
+        "metadata_fn": _device_metadata,
         "context_fn": None,
         "extra_filter": None,
     },
@@ -143,6 +175,7 @@ NORMALIZE_CONFIGS = [
         "source_type": "podcast",
         "posted_at_col": "published_date",
         "text_fn": _podcast_text,
+        "metadata_fn": _podcast_metadata,
         "context_fn": None,
         # skip rows with no transcript (e.g. junk/test rows) rather than
         # normalizing empty content
@@ -158,6 +191,7 @@ def normalize_table(config):
     source_type = config["source_type"]
     posted_at_col = config["posted_at_col"]
     text_fn = config["text_fn"]
+    metadata_fn = config.get("metadata_fn")
     context_fn = config.get("context_fn")
     extra_filter = config["extra_filter"]
 
@@ -190,6 +224,7 @@ def normalize_table(config):
                 "source_id": row[id_col],
                 "text_for_embedding": text,
                 "posted_at": row[posted_at_col],
+                **(metadata_fn(row, context) if metadata_fn else {}),
             })
             row_ids.append(row[id_col])
 
