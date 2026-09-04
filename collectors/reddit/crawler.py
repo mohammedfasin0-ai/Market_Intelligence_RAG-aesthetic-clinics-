@@ -4,16 +4,43 @@ from database import upsert_posts
 from search import fetch_page
 from parser import parse_page
 
-keywords = ["medspa", "botox", "dermal filler", "kybella", "aesthetician", "cool sculpting"]
+# Subreddits identified as genuinely relevant to the industry — found organically
+# in samples pulled during the earlier sitewide keyword-search crawler. Replaces
+# keyword matching entirely: no search query, no risk of an unrelated subreddit's
+# post sneaking in just because it happened to mention "medspa" once.
+subreddits = [
+    "MedSpa",
+    "Estheticians",
+    "DermatologyQuestions",
+    "DermatologyPA",
+    "cosmeticsurgery",
+    "PeptideTides",
+    "TirzepatideRX",
+    "compoundedtirzepatide",
+    "AcneTreatments",
+    "Microneedling",
+    "45PlusSkincare",
+    "MedspaUSA",
+    "DIYaesthetics",
+    "BotoxSupportCommunity",
+    "aestheticnursing",
+    "Esthetics",
+    "PlasticSurgery",
+    "30PlusSkinCare",
+    "KoreaSeoulBeauty",
+    "Zepbound",
+]
 
-REQUEST_DELAY_SECONDS = 5  # be polite — 7 keywords means 7x the requests of before
-CUTOFF_DAYS = 5
+REQUEST_DELAY_SECONDS = 5
+CUTOFF_DAYS = 5  # change this single number whenever you want a different window — nothing else needs editing
 
 
-def build_url(keyword, after=None):
-    url = f"https://safereddit.com/r/popular/search?q={keyword}&sort=new"
+def build_url(subreddit, after=None):
+    # First page: bare /new listing, no query params at all.
+    # Subsequent pages: add the pagination cursor exactly as Reddit's own "next" link does.
+    url = f"https://safereddit.com/r/{subreddit}/new"
     if after:
-        url += f"&after=t3_{after}"
+        url += f"?sort=new&t=&after=t3_{after}"
     return url
 
 
@@ -27,10 +54,10 @@ def parse_post_time(post):
         return None
 
 
-def crawl_keyword(keyword, cutoff_time):
-    """One keyword's full paginated crawl. Wrapped in try/except by the caller
-    so a failure here doesn't stop the remaining keywords from running."""
-    url = build_url(keyword)
+def crawl_subreddit(subreddit, cutoff_time):
+    """One subreddit's full paginated crawl through /new. Wrapped in try/except
+    by the caller so a failure here doesn't stop the remaining subreddits from running."""
+    url = build_url(subreddit)
 
     while True:
         html = fetch_page(url)
@@ -38,7 +65,7 @@ def crawl_keyword(keyword, cutoff_time):
         if not posts:
             break
 
-        print(f"[{keyword}] fetched {len(posts)} posts")
+        print(f"[r/{subreddit}] fetched {len(posts)} posts")
 
         valid_posts = []
         stop_crawling = False
@@ -55,26 +82,26 @@ def crawl_keyword(keyword, cutoff_time):
 
         if valid_posts:
             upsert_posts(valid_posts)
-            print(f"[{keyword}] inserted/updated {len(valid_posts)} posts")
+            print(f"[r/{subreddit}] inserted/updated {len(valid_posts)} posts")
 
         if stop_crawling:
-            print(f"[{keyword}] reached posts older than {CUTOFF_DAYS} days.")
+            print(f"[r/{subreddit}] reached posts older than {CUTOFF_DAYS} days.")
             break
 
         last_post_id = posts[-1]["post_id"]
-        url = build_url(keyword, last_post_id)
+        url = build_url(subreddit, last_post_id)
         time.sleep(REQUEST_DELAY_SECONDS)
 
 
 def crawl_posts():
     cutoff_time = datetime.now(UTC) - timedelta(days=CUTOFF_DAYS)
 
-    for keyword in keywords:
-        print(f"\n=== Starting keyword: {keyword} ===")
+    for subreddit in subreddits:
+        print(f"\n=== Starting r/{subreddit} ===")
         try:
-            crawl_keyword(keyword, cutoff_time)
+            crawl_subreddit(subreddit, cutoff_time)
         except Exception as e:
-            # one keyword's failure shouldn't sink the other six
-            print(f"ERROR crawling '{keyword}': {e} — moving to next keyword")
+            # one subreddit's failure shouldn't sink the rest
+            print(f"ERROR crawling r/{subreddit}: {e} — moving to next subreddit")
             continue
-        time.sleep(REQUEST_DELAY_SECONDS)  # pause between keywords too, not just between pages
+        time.sleep(REQUEST_DELAY_SECONDS)  # pause between subreddits too, not just between pages
