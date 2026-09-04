@@ -32,7 +32,7 @@ def crawl_comments():
 
             print(f"Marked {post['post_id']}) as comments scraped!")
 
-            time.sleep(5)
+            time.sleep(10)
 
         except Exception as e:
             print(f"Failed to process post {post['post_id']}")
